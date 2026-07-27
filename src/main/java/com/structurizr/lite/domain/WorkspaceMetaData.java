@@ -21,6 +21,8 @@ public class WorkspaceMetaData {
 
     private String owner;
 
+    private String slug;
+
     public WorkspaceMetaData(long workspaceId) {
         this.workspaceId = workspaceId;
     }
@@ -167,6 +169,14 @@ public class WorkspaceMetaData {
 
     public boolean isActive() {
         return true;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
     }
 
 }

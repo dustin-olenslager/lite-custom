@@ -1,14 +1,11 @@
 package com.structurizr.lite;
 
 import com.structurizr.Workspace;
-import com.structurizr.api.WorkspaceApiClient;
 import com.structurizr.autolayout.graphviz.GraphvizAutomaticLayout;
 import com.structurizr.dsl.StructurizrDslParser;
-import com.structurizr.encryption.AesEncryptionStrategy;
 import com.structurizr.lite.util.DateUtils;
 import com.structurizr.lite.util.Version;
-import com.structurizr.util.StringUtils;
-import com.structurizr.util.WorkspaceUtils;
+import com.structurizr.lite.web.WorkspaceSlugFilter;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.Filter;
 import org.apache.catalina.Context;
@@ -37,7 +34,6 @@ import java.util.Collections;
 public class StructurizrLite extends SpringBootServletInitializer {
 
 	private static final String DEFAULT_STRUCTURIZR_DATA_DIRECTORY = "/usr/local/structurizr";
-	private static final String STRUCTURIZR_USERNAME = "STRUCTURIZR_USERNAME";
 
 	public static void main(String[] args) {
 		File structurizrDataDirectory = new File(DEFAULT_STRUCTURIZR_DATA_DIRECTORY);
@@ -65,6 +61,16 @@ public class StructurizrLite extends SpringBootServletInitializer {
 		FilterRegistrationBean<CharacterEncodingFilter> registrationBean = new FilterRegistrationBean<>();
 		registrationBean.setFilter(filter);
 		registrationBean.addUrlPatterns("/*");
+
+		return registrationBean;
+	}
+
+	@Bean
+	public FilterRegistrationBean<WorkspaceSlugFilter> workspaceSlugFilterRegistrationBean() {
+		FilterRegistrationBean<WorkspaceSlugFilter> registrationBean = new FilterRegistrationBean<>();
+		registrationBean.setFilter(new WorkspaceSlugFilter());
+		registrationBean.addUrlPatterns("/workspace/*");
+		registrationBean.setOrder(1);
 
 		return registrationBean;
 	}
@@ -149,32 +155,6 @@ public class StructurizrLite extends SpringBootServletInitializer {
 		}
 		log.info("Graphviz (dot): " + Configuration.getInstance().isGraphvizEnabled());
 
-		if (Configuration.getInstance().isSingleWorkspace()) {
-			try {
-				long workspaceId = Configuration.getInstance().getRemoteWorkspaceId();
-				if (workspaceId > 0) {
-					log.info("");
-
-					String branch = "";
-					if (!StringUtils.isNullOrEmpty(Configuration.getInstance().getRemoteBranch())) {
-						branch = " (branch=" + Configuration.getInstance().getRemoteBranch() + ")";
-					}
-					log.info("Pulling workspace from " + Configuration.getInstance().getRemoteApiUrl() + branch + " with ID " + workspaceId);
-
-					Workspace workspace = createWorkspaceApiClient().getWorkspace(workspaceId);
-
-					File jsonFile = new File(Configuration.getInstance().getDataDirectory(), Configuration.getInstance().getWorkspaceFilename() + ".json");
-					if (workspace.getLastModifiedDate().getTime() > jsonFile.lastModified()) {
-						WorkspaceUtils.saveWorkspaceToJson(workspace, jsonFile);
-					} else {
-						log.info("Skipping - local " + Configuration.getInstance().getWorkspaceFilename() + ".json file is newer");
-					}
-				}
-			} catch (Exception e) {
-				log.error(e);
-			}
-		}
-		
 		log.info("***********************************************************************************");
 		log.info("MIT License");
 		log.info("");
@@ -206,48 +186,7 @@ public class StructurizrLite extends SpringBootServletInitializer {
 
 		log.info("********************************************************");
 		log.info(" Stopping Structurizr Lite");
-
-		if (Configuration.getInstance().isSingleWorkspace()) {
-			try {
-				long workspaceId = Configuration.getInstance().getRemoteWorkspaceId();
-				if (workspaceId > 0) {
-					log.info("");
-
-					String branch = "";
-					if (!StringUtils.isNullOrEmpty(Configuration.getInstance().getRemoteBranch())) {
-						branch = " (branch=" + Configuration.getInstance().getRemoteBranch() + ")";
-					}
-					log.info("Pushing workspace to " + Configuration.getInstance().getRemoteApiUrl() + branch + " with ID " + workspaceId);
-
-					Workspace workspace = WorkspaceUtils.loadWorkspaceFromJson(new File(Configuration.getInstance().getDataDirectory(), Configuration.getInstance().getWorkspaceFilename() + ".json"));
-					createWorkspaceApiClient().putWorkspace(workspaceId, workspace);
-				}
-			} catch (Exception e) {
-				log.error(e);
-			}
-		}
-
 		log.info("********************************************************");
-	}
-
-
-	private static WorkspaceApiClient createWorkspaceApiClient() {
-		String apiUrl = Configuration.getInstance().getRemoteApiUrl();
-		String apiKey = Configuration.getInstance().getRemoteApiKey();
-		String apiSecret = Configuration.getInstance().getRemoteApiSecret();
-		String passphrase = Configuration.getInstance().getRemotePassphrase();
-		String branch = Configuration.getInstance().getRemoteBranch();
-
-		WorkspaceApiClient client = new WorkspaceApiClient(apiUrl, apiKey, apiSecret);
-		client.setAgent("structurizr-lite/" + new Version().getBuildNumber());
-		client.setUser(System.getenv(STRUCTURIZR_USERNAME));
-		client.setBranch(branch);
-		if (!StringUtils.isNullOrEmpty(passphrase)) {
-			client.setEncryptionStrategy(new AesEncryptionStrategy(passphrase));
-		}
-		client.setMergeFromRemote(false);
-
-		return client;
 	}
 
 }

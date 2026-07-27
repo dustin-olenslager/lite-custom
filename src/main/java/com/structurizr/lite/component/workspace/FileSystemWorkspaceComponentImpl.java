@@ -9,7 +9,6 @@ import com.structurizr.lite.component.search.SearchComponent;
 import com.structurizr.lite.domain.WorkspaceMetaData;
 import com.structurizr.lite.util.DateUtils;
 import com.structurizr.lite.util.Image;
-import com.structurizr.util.DslTemplate;
 import com.structurizr.util.StringUtils;
 import com.structurizr.util.WorkspaceUtils;
 import com.structurizr.validation.WorkspaceScopeValidatorFactory;
@@ -76,18 +75,19 @@ class FileSystemWorkspaceComponentImpl implements WorkspaceComponent {
             File json = new File(getDataDirectory(1), filename + ".json");
 
             if (!dsl.exists() && !json.exists()) {
-                writeToFile(new File(dataDirectory, filename + ".dsl"), DslTemplate.generate("Name", "Description"));
+                writeToFile(new File(dataDirectory, filename + ".dsl"), "workspace \"Name\" \"Description\" {\n\n    model {\n    }\n\n    views {\n    }\n\n}");
             }
         }
 
         lastModifiedDate = findLatestLastModifiedDate(dataDirectory);
     }
 
-    private WorkspaceMetaData toWorkspaceMetadata(Workspace workspace) {
+    private WorkspaceMetaData toWorkspaceMetadata(Workspace workspace, String slug) {
         WorkspaceMetaData workspaceMetaData = new WorkspaceMetaData(workspace.getId());
         workspaceMetaData.setName(workspace.getName());
         workspaceMetaData.setDescription(workspace.getDescription());
         workspaceMetaData.setLastModifiedDate(workspace.getLastModifiedDate());
+        workspaceMetaData.setSlug(slug);
 
         return workspaceMetaData;
     }
@@ -186,7 +186,7 @@ class FileSystemWorkspaceComponentImpl implements WorkspaceComponent {
 
             // run default inspections
             new DefaultInspector(workspace);
-            
+
             if (!workspace.getModel().isEmpty() && workspace.getViews().isEmpty()) {
                 workspace.getViews().createDefaultViews();
             }
@@ -229,7 +229,14 @@ class FileSystemWorkspaceComponentImpl implements WorkspaceComponent {
                             workspace = new Workspace("Workspace " + id, "");
                             workspace.setId(id);
                         }
-                        workspaces.add(toWorkspaceMetadata(workspace));
+
+                        String slug = null;
+                        int dash = file.getName().indexOf('-');
+                        if (dash > 0 && dash < file.getName().length() - 1) {
+                            slug = file.getName().substring(dash + 1);
+                        }
+
+                        workspaces.add(toWorkspaceMetadata(workspace, slug));
                     } catch (Exception e) {
                         log.warn("Ignoring workspace with ID " + id + ": " + e.getMessage());
                     }
